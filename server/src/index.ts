@@ -31,9 +31,11 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"],
-  },
+    origin: [
+      "http://localhost:5173",
+      "https://ghost-chat-murex.vercel.app"
+    ]
+  }
 });
 
 const PORT = 3000;

@@ -54,9 +54,6 @@ function Navbar(
   <span className="text-sm text-amber-800 hidden sm:block tracking-wider animate-[flicker_3s_ease-in-out_infinite]">
     ✦ Anonymous ✦
   </span>
-  <GhostButton variant="ghost" className="px-4 py-3 text-sm">
-    🕯️ Theme
-  </GhostButton>
 </div>
 
       </div>

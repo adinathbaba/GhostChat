@@ -24,7 +24,12 @@ function findSocketByCode(
   return null;
 }
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://ghost-chat-murex.vercel.app"
+  ]
+}));
 app.use(express.json());
 
 const httpServer = createServer(app);

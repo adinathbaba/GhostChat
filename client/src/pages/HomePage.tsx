@@ -248,8 +248,8 @@ setWaiting(
 
       <Navbar connected={connected} />
 
-      <main className="max-w-4xl mx-auto px-6 py-12 relative z-10">
-        <h2 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight text-zinc-100">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 relative z-10">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 tracking-tight text-zinc-100">
           Whisper to a Ghost. Leave No Trace.
         </h2>
 
@@ -262,11 +262,11 @@ setWaiting(
           <p className="text-zinc-500 mb-2 uppercase tracking-widest text-xl font-semibold">
             Summoning Key
           </p>
-          <div className="flex items-center justify-between">
-            <h3 className="text-4xl font-bold tracking-[0.2em] text-zinc-200">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-[0.15em] text-zinc-200 break-all">
               {userCode}
             </h3>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
               <button
                 onClick={copyCode}
                 disabled={copied}
@@ -384,14 +384,14 @@ setWaiting(
         {/* ✅ Incoming Request Popup */}
         {incomingRequest && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-80 shadow-2xl">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-[90%] max-w-sm">
               <h3 className="text-lg font-semibold mb-2 text-amber-200">
                 👻 Chat Request
               </h3>
               <p className="text-zinc-400 mb-5">
                 From: <span className="text-amber-300 font-mono font-bold">{incomingRequest}</span>
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   onClick={() => {
                     socket.emit("request-response", {

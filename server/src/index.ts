@@ -77,6 +77,9 @@ app.get("/", (req, res) => {
 
 io.on("connection", (socket) => {
 
+    socket.on("typing", (roomId) => {
+  socket.to(roomId).emit("typing");
+});
 
   socket.on("send-request", (receiverCode) => {
 

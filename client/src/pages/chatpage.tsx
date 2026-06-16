@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import type { Message } from "../types/messages";
 import { socket } from "../socket/socket";
 
+
 function ChatPage({
   roomId,
   userCode,
@@ -17,7 +18,7 @@ function ChatPage({
   const [text, setText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [typing, setTyping] = useState(false);
-
+const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
 
   const handleClose =
@@ -54,9 +55,16 @@ function ChatPage({
     });
 
     socket.on("typing", () => {
-      setTyping(true);
-      setTimeout(() => setTyping(false), 1000);
-    });
+  setTyping(true);
+
+  if (typingTimeout.current) {
+    clearTimeout(typingTimeout.current);
+  }
+
+  typingTimeout.current = setTimeout(() => {
+    setTyping(false);
+  }, 1000);
+});
 
     return () => {
       socket.off("receive-message");
@@ -113,11 +121,11 @@ function ChatPage({
 
       <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03] mix-blend-overlay bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22/></filter><rect width=%22100%22 height=%22100%22 filter=%22url(%23n)%22/></svg>')]" />
 
-      <header className="relative z-10 border-b border-white/5 bg-[#0d0d0d]/80 backdrop-blur-md shadow-2xl">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center gap-3 mb-3">
-            <span className="text-2xl animate-[ghost-float_3s_ease-in-out_infinite]">👻</span>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-100">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md shadow-2xl">
+        <div className="max-w-4xl mx-auto px-3 sm:px-6 py-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg sm:text-2xl animate-[ghost-float_3s_ease-in-out_infinite]">👻</span>
+            <h2 className="text-xl sm:text-2xl tracking-tight text-zinc-100">
               The Séance
             </h2>
             <span className="ml-auto flex items-center gap-2 text-xs text-green-400/80">
@@ -154,7 +162,7 @@ function ChatPage({
         </div>
       </header>
 
-      <main className="relative z-10 flex-1 overflow-y-auto px-4 sm:px-6 py-6 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+      <main className="relative z-10 flex-1 overflow-y-auto px-4 sm:px-6 pt-28 pb-28 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -181,13 +189,13 @@ function ChatPage({
                 } animate-[message-in_0.4s_ease-out]`}
               >
                 <div
-                  className={`group max-w-[80%] sm:max-w-[65%] px-4 py-3 rounded-2xl shadow-lg backdrop-blur-sm border transition-all duration-300 hover:scale-[1.02] ${
+                  className={`group max-w-[90%] sm:max-w-[75%] lg:max-w-[65%] px-4 py-3 rounded-2xl shadow-lg backdrop-blur-sm border transition-all duration-300 hover:scale-[1.02] ${
                     isMine
                       ? "bg-linear-to-br from-indigo-700/90 to-indigo-900/90 border-indigo-600/30 text-white rounded-br-sm"
                       : "bg-linear-to-br from-zinc-800/90 to-zinc-900/90 border-white/5 text-zinc-200 rounded-bl-sm"
                   }`}
                 >
-                  <p className="leading-relaxed wrap-break-words">
+                  <p className="leading-relaxed break-all">
                     {msg.text}
                   </p>
                   <p
@@ -204,7 +212,7 @@ function ChatPage({
 
           {typing && (
             <div className="flex justify-start animate-[message-in_0.4s_ease-out]">
-              <div className="max-w-[80%] sm:max-w-[65%] px-4 py-3 rounded-2xl shadow-lg backdrop-blur-sm border bg-linear-to-br from-zinc-800/90 to-zinc-900/90 border-white/5 text-zinc-400 text-sm italic rounded-bl-sm">
+              <div className="max-w-[90%] sm:max-w-[75%] lg:max-w-[65%] px-4 py-3 rounded-2xl shadow-lg backdrop-blur-sm border bg-linear-to-br from-zinc-800/90 to-zinc-900/90 border-white/5 text-zinc-400 text-sm italic rounded-bl-sm">
                 <span className="animate-pulse">Phantom is typing...</span>
               </div>
             </div>
@@ -214,7 +222,7 @@ function ChatPage({
         </div>
       </main>
 
-      <footer className="relative z-10 border-t border-white/5 bg-[#0d0d0d]/80 backdrop-blur-md">
+      <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex gap-3 items-center">
             <input

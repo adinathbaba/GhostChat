@@ -1,3 +1,4 @@
+import GhostButton from "./ghostbuttons";
 function Navbar(
   {
     connected,

@@ -108,7 +108,7 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   };
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0a] text-zinc-200 font-serif flex flex-col overflow-hidden selection:bg-zinc-700 selection:text-white">
+    <div className="relative h-dvh bg-[#0a0a0a] text-zinc-200 font-serif flex flex-col overflow-hidden selection:bg-zinc-700 selection:text-white">
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <span className="absolute left-[8%] top-[15%] text-6xl rotate-12 opacity-25% animate-[ghost-float_5s_ease-in-out_infinite]">👻</span>
         <span className="absolute left-[80%] top-[25%] text-8xl -rotate-12 opacity-25% animate-[ghost-float_6s_ease-in-out_infinite_0.5s]">👻</span>
@@ -162,7 +162,7 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
         </div>
       </header>
 
-      <main className="relative z-10 flex-1 overflow-y-auto px-4 sm:px-6 pt-28 pb-28 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+      <main className="relative z-10 flex-1 overflow-y-auto px-4 sm:px-6 pt-40 pb-28 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">

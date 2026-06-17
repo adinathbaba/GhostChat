@@ -40,7 +40,8 @@ const io = new Server(httpServer, {
       "http://localhost:5173",
       "https://ghost-chat-murex.vercel.app"
     ]
-  }
+  },
+   maxHttpBufferSize: 10 * 1024 * 1024 
 });
 
 const PORT = 3000;

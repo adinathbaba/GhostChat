@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import type { Message } from "../types/messages";
 import { socket } from "../socket/socket";
+import imageCompression from "browser-image-compression";
 
 
 function ChatPage({
@@ -19,6 +20,7 @@ function ChatPage({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [typing, setTyping] = useState(false);
 const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
 
   const handleClose =
@@ -92,9 +94,62 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
       roomId,
       message,
     });
-
+     socket.emit("stop-typing", roomId);
     setText("");
   };
+  const handleImageSelect = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+
+  const file =
+    e.target.files?.[0];
+
+  if (!file) return;
+
+  try {
+
+    const compressed =
+      await imageCompression(
+        file,
+        {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+        }
+      );
+
+    const reader =
+      new FileReader();
+
+    reader.onload = () => {
+
+      const message = {
+        image:
+          reader.result as string,
+          text: text,
+        senderId:
+          userCode,
+        timestamp:
+          new Date().toLocaleTimeString(),
+      };
+
+      socket.emit(
+        "send-message",
+        {
+          roomId,
+          message,
+        }
+      );
+    };
+
+    reader.readAsDataURL(
+      compressed
+    );
+
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -195,9 +250,29 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
                       : "bg-linear-to-br from-zinc-800/90 to-zinc-900/90 border-white/5 text-zinc-200 rounded-bl-sm"
                   }`}
                 >
-                  <p className="leading-relaxed break-all">
-                    {msg.text}
-                  </p>
+                  {msg.text && (
+  <p className="leading-relaxed break-all">
+    {msg.text}
+  </p>
+)}
+
+{msg.image && (
+  <img
+    src={msg.image}
+    alt="shared"
+    onClick={() => setPreview(msg.image!)}
+    className="
+  mt-2
+  rounded-xl
+  w-full
+  max-w-62.5
+  sm:max-w-87.5
+  max-h-75
+  object-cover
+"
+
+  />
+)}
                   <p
                     className={`text-[10px] mt-1.5 tracking-wider ${
                       isMine ? "text-indigo-300/70" : "text-zinc-500"
@@ -220,6 +295,8 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
           <div ref={messagesEndRef} />
         </div>
+
+        
       </main>
 
       <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md">
@@ -235,6 +312,29 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
               placeholder="Whisper into the void..."
               className="flex-1 px-5 py-3.5 rounded-xl bg-black/40 border border-white/10 outline-none text-zinc-200 placeholder:text-zinc-600 placeholder:italic focus:border-indigo-700/50 focus:bg-black/60 transition-all duration-300 shadow-inner"
             />
+            <input
+  id="image-upload"
+  type="file"
+  accept="image/*"
+  className="hidden"
+  onChange={handleImageSelect}
+/>
+
+<label
+  htmlFor="image-upload"
+  className="
+    cursor-pointer
+    px-4
+    py-3.5
+    rounded-xl
+    bg-zinc-800
+    hover:bg-zinc-700
+    transition
+  "
+>
+  📷
+</label>
+
 
             <button
               onClick={sendMessage}
@@ -244,6 +344,7 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
               <span className="hidden sm:inline">Send 🕯️</span>
               <span className="sm:hidden">🕯️</span>
             </button>
+            
           </div>
 
           <p className="text-center text-zinc-700 text-[10px] mt-3 tracking-widest uppercase">
@@ -251,6 +352,26 @@ const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
           </p>
         </div>
       </footer>
+      {/* Fullscreen Image Viewer */}
+{preview && (
+  <div
+    onClick={() => setPreview(null)}
+    className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 cursor-pointer animate-[message-in_0.3s_ease-out]"
+  >
+    <button
+      onClick={() => setPreview(null)}
+      className="absolute top-4 right-4 text-white text-3xl hover:text-red-400 transition-colors duration-300 z-101"
+    >
+      ✖
+    </button>
+    <img
+      src={preview}
+      alt="full preview"
+      onClick={(e) => e.stopPropagation()}
+      className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+    />
+  </div>
+)}
     </div>
   );
 }

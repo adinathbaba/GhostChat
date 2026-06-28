@@ -6,6 +6,17 @@ const CyberpunkCursor: React.FC = () => {
   const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // --- FIX: Detect touch devices and exit early ---
+    const isTouchDevice = 
+      'ontouchstart' in window || 
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia("(pointer: coarse)").matches;
+
+    if (isTouchDevice) {
+      return; // Do nothing if the user is on mobile/touch screen
+    }
+    // ------------------------------------------------
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -66,14 +77,18 @@ const CyberpunkCursor: React.FC = () => {
       window.removeEventListener("mousemove", onMouseMove);
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       document.body.style.cursor = "";
-      document.head.removeChild(style);
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
     };
   }, []);
 
+  // We can also add a Tailwind class like 'hidden md:block' to physically hide the canvas on small screens, 
+  // but the JS check above is what stops the logic from running.
   return (
     <canvas
       ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
+      className="hidden md:block fixed top-0 left-0 w-full h-full pointer-events-none z-50"
       style={{ mixBlendMode: "screen" }}
     />
   );

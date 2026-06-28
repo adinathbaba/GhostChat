@@ -5,23 +5,39 @@ import { Server } from "socket.io";
 
 const app = express();
 
-function findSocketByCode(
-  code: string
-) {
-  for (
-    const [
-      socketId,
-      userCode
-    ] of userCodes
-  ) {
-    if (
-      userCode === code
-    ) {
-      return socketId;
-    }
+// ✅ NEW: reverse map for O(1) lookup (code -> socketId)
+const codeToSocket = new Map<string, string>();
+
+// ✅ FIXED: now uses the reverse map instead of looping
+function findSocketByCode(code: string): string | null {
+  return codeToSocket.get(code) || null;
+}
+
+// ✅ NEW: helper to fully clean up a room and notify both users
+function cleanupRoom(io: Server, roomId: string) {
+  const room = roomPartners.get(roomId);
+  if (!room) return;
+
+  const { user1, user2 } = room;
+
+  // Get the socket objects
+  const socket1 = io.sockets.sockets.get(user1);
+  const socket2 = io.sockets.sockets.get(user2);
+
+  // Notify both partners directly (before removing anything)
+  if (socket1) {
+    socket1.emit("partner-left", "Room closed");
+    socket1.leave(roomId);
+  }
+  if (socket2) {
+    socket2.emit("partner-left", "Room closed");
+    socket2.leave(roomId);
   }
 
-  return null;
+  // Delete the room from the map
+  roomPartners.delete(roomId);
+
+  console.log(`✅ Room ${roomId} cleaned up and partners notified.`);
 }
 
 app.use(cors({
@@ -41,36 +57,15 @@ const io = new Server(httpServer, {
       "https://ghost-chat-murex.vercel.app"
     ]
   },
-   maxHttpBufferSize: 10 * 1024 * 1024 
+  maxHttpBufferSize: 10 * 1024 * 1024
 });
 
 const PORT = 3000;
 const waitingQueue: string[] = [];
-const roomPartners =
-  new Map<
-    string,
-    {
-      user1: string;
-      user2: string;
-    }
-  >();
-  const userCodes =
-  new Map<
-    string,
-    string
-  >();
-
-  const blockedUsers =
-  new Map<
-    string,
-    string[]
-  >();
-
-  const requestCooldowns =
-  new Map<
-    string,
-    number
-  >();
+const roomPartners = new Map<string, { user1: string; user2: string }>();
+const userCodes = new Map<string, string>();
+const blockedUsers = new Map<string, string[]>();
+const requestCooldowns = new Map<string, number>();
 
 app.get("/", (req, res) => {
   res.send("Backend running");
@@ -78,414 +73,207 @@ app.get("/", (req, res) => {
 
 io.on("connection", (socket) => {
 
-    socket.on("typing", (roomId) => {
-  socket.to(roomId).emit("typing");
-});
+  socket.on("typing", (roomId) => {
+    socket.to(roomId).emit("typing");
+  });
 
   socket.on("send-request", (receiverCode) => {
 
-  // ✅ Cooldown check
-  const now = Date.now();
-  const lastRequest = requestCooldowns.get(socket.id) || 0;
+    const now = Date.now();
+    const lastRequest = requestCooldowns.get(socket.id) || 0;
 
-  if (now - lastRequest < 5000) {
-    socket.emit("request-error", "⏳ Wait 5 seconds before sending again");
-    return;
-  }
-
-  requestCooldowns.set(socket.id, now);
-
-  const senderCode = userCodes.get(socket.id);
-
-    const targetSocketId =
-      findSocketByCode(
-        receiverCode
-      );
-
-    if (
-      !senderCode ||
-      !targetSocketId
-    ) {
-
-      socket.emit(
-        "request-error",
-        "User not found"
-      );
-
+    if (now - lastRequest < 5000) {
+      socket.emit("request-error", "⏳ Wait 5 seconds before sending again");
       return;
     }
 
-      if (targetSocketId === socket.id) {
-    socket.emit("request-error", "🚫 Cannot request yourself");
-    return;
-  }
+    requestCooldowns.set(socket.id, now);
 
-    const blocked =
-      blockedUsers.get(
-        receiverCode
-      ) || [];
+    const senderCode = userCodes.get(socket.id);
+    const targetSocketId = findSocketByCode(receiverCode);
 
-    if (
-      blocked.includes(
-        senderCode
-      )
-    ) {
-
-      socket.emit(
-        "request-blocked"
-      );
-
+    if (!senderCode || !targetSocketId) {
+      socket.emit("request-error", "User not found");
       return;
     }
-    console.log(
-  senderCode,
-  "sent request to",
-  receiverCode
-);
 
-    io.to(
-      targetSocketId
-    ).emit(
-      "chat-request",
-      {
-        senderCode,
-      }
-    );
+    if (targetSocketId === socket.id) {
+      socket.emit("request-error", "🚫 Cannot request yourself");
+      return;
+    }
 
-    socket.emit(
-      "request-pending"
-    );
-  }
-);
+    const blocked = blockedUsers.get(receiverCode) || [];
 
-  socket.on(
-  "request-response",
-  ({
-    senderCode,
-    response,
-  }) => {
+    if (blocked.includes(senderCode)) {
+      socket.emit("request-blocked");
+      return;
+    }
 
-    const senderSocket =
-      findSocketByCode(
-        senderCode
-      );
+    console.log(senderCode, "sent request to", receiverCode);
 
-    if (
-      !senderSocket
-    ) return;
+    io.to(targetSocketId).emit("chat-request", { senderCode });
+    socket.emit("request-pending");
+  });
 
-    if (
-      response ===
-      "yes"
-    ) {
+  socket.on("request-response", ({ senderCode, response }) => {
+
+    const senderSocket = findSocketByCode(senderCode);
+    if (!senderSocket) return;
+
+    if (response === "yes") {
 
       const roomId = `private_${Date.now()}`;
+      const receiverCode = userCodes.get(socket.id);
 
-const receiverCode =
-  userCodes.get(socket.id);
+      io.sockets.sockets.get(senderSocket)?.join(roomId);
+      socket.join(roomId);
 
-// join BOTH users to room
-io.sockets.sockets
-  .get(senderSocket)
-  ?.join(roomId);
+      roomPartners.set(roomId, {
+        user1: senderSocket,
+        user2: socket.id,
+      });
 
-socket.join(roomId);
+      io.to(senderSocket).emit("request-accepted", {
+        roomId,
+        partnerCode: receiverCode,
+      });
 
-// save room
-roomPartners.set(
-  roomId,
-  {
-    user1: senderSocket,
-    user2: socket.id,
-  }
-);
+      io.to(socket.id).emit("request-accepted", {
+        roomId,
+        partnerCode: senderCode,
+      });
 
-// send acceptance
-io.to(senderSocket).emit(
-  "request-accepted",
-  {
-    roomId,
-    partnerCode:
-      receiverCode,
-  }
-);
+      console.log("Private match created:", roomId, senderCode, receiverCode);
 
-io.to(socket.id).emit(
-  "request-accepted",
-  {
-    roomId,
-    partnerCode:
-      senderCode,
-  }
-);
+    } else if (response === "no") {
 
-console.log(
-  "Private match created:",
-  roomId,
-  senderCode,
-  receiverCode
-);
+      io.to(senderSocket).emit("request-rejected");
 
-    } else if (
-      response ===
-      "no"
-    ) {
+    } else if (response === "block") {
 
-      io.to(
-        senderSocket
-      ).emit(
-        "request-rejected"
-      );
+      const receiverCode = userCodes.get(socket.id);
 
-    } else if (
-      response ===
-      "block"
-    ) {
-
-      const receiverCode =
-        userCodes.get(
-          socket.id
-        );
-
-      if (
-        receiverCode
-      ) {
-
-        const existing =
-          blockedUsers.get(
-            receiverCode
-          ) || [];
-
-        blockedUsers.set(
-          receiverCode,
-          [
-            ...existing,
-            senderCode,
-          ]
-        );
+      if (receiverCode) {
+        const existing = blockedUsers.get(receiverCode) || [];
+        blockedUsers.set(receiverCode, [...existing, senderCode]);
       }
 
-      io.to(
-        senderSocket
-      ).emit(
-        "request-blocked"
-      );
+      io.to(senderSocket).emit("request-blocked");
     }
-  }
-);
-  
+  });
 
-  socket.on(
-  "register-code",
-  (code) => {
+  socket.on("register-code", (code) => {
+    userCodes.set(socket.id, code);
+    codeToSocket.set(code, socket.id); // ✅ keep reverse map in sync
+    console.log("Code registered:", code);
+  });
 
-    userCodes.set(
-      socket.id,
-      code
-    );
+  console.log("User connected:", socket.id);
 
-    console.log(
-      "Code registered:",
-      code
-    );
-  }
-);
-  console.log(
-    "User connected:",
-    socket.id
+  // ✅ FIXED: socket.to() (not io.to()) + acknowledgment callback
+  socket.on("send-message", ({ roomId, message }, callback) => {
+    socket.to(roomId).emit("receive-message", message);
 
+    if (typeof callback === "function") {
+      callback({ success: true, deliveredAt: Date.now() });
+    }
+  });
 
-  );
+  // ✅ FIXED: fully clean up the room
+  socket.on("leave-chat", (roomId) => {
+    cleanupRoom(io, roomId);
+  });
 
-  socket.on(
-  "send-message",
-  ({
-    roomId,
-    message,
-  }) => {
+  socket.emit("welcome", "Connected to GhostChat server");
 
-    io.to(roomId).emit(
-      "receive-message",
-      message
-    );
-  }
-);
+  socket.on("join-random", () => {
 
-    socket.on(
-  "leave-chat",
-  (
-    roomId
-  ) => {
+    console.log(socket.id, "requested random chat");
 
-    socket.leave(
-      roomId
-    );
-
-    socket.to(
-      roomId
-    ).emit(
-      "partner-left"
-    );
-  }
-);
-
-  socket.emit(
-    "welcome",
-    "Connected to GhostChat server"
-  );
-  socket.on(
-  "join-random",
-  () => {
-
-    console.log(
-      socket.id,
-      "requested random chat"
-    );
-
-    if (
-      waitingQueue.includes(
-        socket.id
-      )
-    ) {
+    if (waitingQueue.includes(socket.id)) {
       return;
     }
 
-    if (
-      waitingQueue.length > 0
-    ) {
+    if (waitingQueue.length > 0) {
 
-      const partnerId =
-        waitingQueue.shift();
-
+      const partnerId = waitingQueue.shift();
       if (!partnerId) return;
 
-      const roomId =
-        `room_${Date.now()}`;
-        roomPartners.set(
-          
-  roomId,
-  {
-    user1: socket.id,
-    user2: partnerId,
-  }
-);
+      const roomId = `room_${Date.now()}`;
+      roomPartners.set(roomId, {
+        user1: socket.id,
+        user2: partnerId,
+      });
 
       socket.join(roomId);
 
-      const partnerSocket =
-        io.sockets.sockets.get(
-          partnerId
-        );
+      const partnerSocket = io.sockets.sockets.get(partnerId);
+      partnerSocket?.join(roomId);
 
-      partnerSocket?.join(
-        roomId
-      );
+      const user1Code = userCodes.get(partnerId);
+      const user2Code = userCodes.get(socket.id);
 
-      const user1Code =
-  userCodes.get(
-    partnerId
-  );
+      io.to(partnerId).emit("matched", {
+        roomId,
+        partnerCode: user2Code,
+      });
 
-const user2Code =
-  userCodes.get(
-    socket.id
-  );
+      io.to(socket.id).emit("matched", {
+        roomId,
+        partnerCode: user1Code,
+      });
 
-io.to(
-  partnerId
-).emit(
-  "matched",
-  {
-    roomId,
-    partnerCode:
-      user2Code,
-  }
-);
-
-io.to(
-  socket.id
-).emit(
-  "matched",
-  {
-    roomId,
-    partnerCode:
-      user1Code,
-  }
-);
-
-      console.log(
-        "Matched",
-        socket.id,
-        partnerId,
-        roomId
-      );
+      console.log("Matched", socket.id, partnerId, roomId);
 
     } else {
 
-      waitingQueue.push(
-        socket.id
-      );
-
-      console.log(
-        socket.id,
-        "added to queue"
-      );
-
-      socket.emit(
-        "waiting"
-      );
+      waitingQueue.push(socket.id);
+      console.log(socket.id, "added to queue");
+      socket.emit("waiting");
     }
-  }
-);
-    
+  });
+
   socket.on("disconnect", () => {
 
-    userCodes.delete(
-  socket.id
-);
-    const index =
-  waitingQueue.indexOf(
-    socket.id
-  );
-  for (
-  const [
-    roomId,
-    users
-  ] of roomPartners
-) {
-  if (
-    users.user1 === socket.id ||
-    users.user2 === socket.id
-  ) {
-    roomPartners.delete(
-      roomId
-    );
-  }
-}
+    // ✅ FIXED: notify partner + delete room
+    for (const [roomId, users] of roomPartners.entries()) {
+      if (users.user1 === socket.id || users.user2 === socket.id) {
+        cleanupRoom(io, roomId);
+        break; // a user is only in one room at a time
+      }
+    }
 
-if (index !== -1) {
-  waitingQueue.splice(
-    index,
-    1
-  );
-}
-      // ✅ Cleanup cooldowns
-  requestCooldowns.delete(socket.id);
+    // ✅ Clean up reverse map + userCodes
+    const userCode = userCodes.get(socket.id);
+    if (userCode) {
+      codeToSocket.delete(userCode);
+      userCodes.delete(socket.id);
+    }
 
-  // ✅ Cleanup user codes
-  userCodes.delete(socket.id);
+    // ✅ Remove from waiting queue
+    const index = waitingQueue.indexOf(socket.id);
+    if (index !== -1) {
+      waitingQueue.splice(index, 1);
+    }
 
-  console.log("User disconnected:", socket.id);
+    // ✅ Clean up cooldowns
+    requestCooldowns.delete(socket.id);
 
-    console.log(
-      "User disconnected:",
-      socket.id
-    );
+    console.log("User disconnected:", socket.id);
   });
+
+  socket.on("leave-queue", () => {
+  const index = waitingQueue.indexOf(socket.id);
+  if (index !== -1) {
+    waitingQueue.splice(index, 1);
+    socket.emit("queue-left");
+    console.log(`User ${socket.id} left the queue`);
+  }
+});
+
+
 });
 
 httpServer.listen(PORT, () => {
-  console.log(
-    `Server running on ${PORT}`
-  );
+  console.log(`Server running on ${PORT}`);
 });

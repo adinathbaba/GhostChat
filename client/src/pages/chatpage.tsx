@@ -60,16 +60,22 @@ function ChatPage({
   }, [messages, typing]);
 
   const sendMessage = () => {
-    if (!text.trim()) return;
-    const message = {
-      text,
-      senderId: userCode,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    socket.emit("send-message", { roomId, message });
-    socket.emit("stop-typing", roomId);
-    setText("");
+  if (!text.trim()) return;
+
+  const message = {
+    text: text.trim(),
+    senderId: userCode,
+    timestamp: new Date().toLocaleTimeString(),
   };
+
+  // Show immediately on sender side
+  setMessages((prev) => [...prev, message]);
+
+  socket.emit("send-message", { roomId, message });
+  socket.emit("stop-typing", roomId);
+
+  setText("");
+};
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -82,12 +88,14 @@ function ChatPage({
       });
       const reader = new FileReader();
       reader.onload = () => {
+        
         const message = {
           image: reader.result as string,
           text: text,
           senderId: userCode,
           timestamp: new Date().toLocaleTimeString(),
         };
+        setMessages((prev) => [...prev, message]);
         socket.emit("send-message", { roomId, message });
       };
       reader.readAsDataURL(compressed);
@@ -184,7 +192,7 @@ function ChatPage({
       `}</style>
 
       {/* FIX 1: Use `fixed inset-0` instead of `relative h-dvh` to lock it entirely to the viewport */}
-      <div className="fixed inset-0 bg-[#0a0a14] text-cyan-100 font-sans selection:bg-pink-500 selection:text-white flex flex-col overflow-hidden">
+      <div className="h-dvh bg-[#0a0a14] text-cyan-100 font-sans selection:bg-pink-500 selection:text-white flex flex-col overflow-hidden">
         
         <div className="cyber-bg">
           <span className="cyber-float">Ø</span>
@@ -292,7 +300,7 @@ function ChatPage({
 
         {/* ——— Input ——— */}
         {/* FIX 4: Removed `fixed bottom-0 left-0 right-0` and replaced with `shrink-0`. */}
-        <footer className="relative z-20 shrink-0 glass-panel rounded-none border-t border-pink-500/20 bg-[#0a0a14]/70">
+        <footer className="sticky bottom-0 z-20 shrink-0 glass-panel border-t border-pink-500/20 bg-[#0a0a14]/70">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
             <div className="flex gap-3 items-center">
               <input
